@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Displacement vector I–J</title>
+
+<script id="cfg" type="application/json">
+{
+  "J": [
+    -1.1,
+    0.5,
+    0.1
+  ],
+  "D": [
+    -2.2,
+    -0.5,
+    0.5
+  ],
+  "cell": {
+    "x": [
+      -3.6,
+      0.2
+    ],
+    "y": [
+      0,
+      1
+    ],
+    "z": [
+      0,
+      1.1
+    ]
+  },
+  "theta": 27.411499407107616,
+  "phi": 0.1877923688172197,
+  "scale": 190,
+  "spin": true,
+  "spinSpeed": 4,
+  "sweepOn": true,
+  "sweepDur": 2,
+  "showComps": true,
+  "showCell": false,
+  "labelUnit": ""
+}
+</script>
+
+<style>
+  :root{
+    --paper:#F7F6F3; --card:#FFFFFF; --ink:#1C1B19; --ink-2:#5C5A54; --ink-3:#8E8B83;
+    --rule:#DEDBD3; --rule-2:#C9C5BB;
+    --ax-x:#B23A32; --ax-y:#4A7A24; --ax-z:#2E6FB0;
+    --at-i:#9B2C2C; --at-j:#8A887F;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#171614; --card:#1F1E1B; --ink:#EDEBE5; --ink-2:#A8A59C; --ink-3:#787569;
+      --rule:#312F2B; --rule-2:#43403A;
+      --ax-x:#E4675C; --ax-y:#8CC24F; --ax-z:#68A8E8;
+      --at-i:#D65A54; --at-j:#9C998F;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:32px 20px 64px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+  h1{font-size:17px;font-weight:500;margin:0;letter-spacing:-0.01em}
+  .sub{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:0.06em;text-transform:uppercase}
+  .stage{margin-top:20px;background:var(--card);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+  canvas{display:block;width:100%;cursor:grab;touch-action:none}
+  canvas:active{cursor:grabbing}
+  .readout{font-family:var(--mono);font-size:12px;color:var(--ink-2);border-top:1px solid var(--rule);padding:10px 14px;display:flex;gap:20px;flex-wrap:wrap}
+  .readout b{font-weight:500;color:var(--ink)}
+  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:22px}
+  fieldset{border:1px solid var(--rule);border-radius:10px;padding:14px 16px 16px;margin:0;background:var(--card)}
+  legend{font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-3);padding:0 6px}
+  .row{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .row:first-of-type{margin-top:2px}
+  .key{width:74px;flex:none;font-size:13px;color:var(--ink-2)}
+  .key i{font-style:normal;font-weight:500}
+  .val{width:52px;flex:none;text-align:right;font-family:var(--mono);font-size:12px;color:var(--ink)}
+  input[type=range]{flex:1;min-width:0;height:20px;-webkit-appearance:none;appearance:none;background:none}
+  input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--rule-2);border-radius:2px}
+  input[type=range]::-moz-range-track{height:3px;background:var(--rule-2);border-radius:2px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-5.5px;border-radius:50%;background:var(--ink);border:none;cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--ink);border:none;cursor:pointer}
+  input[type=number]{width:64px;flex:none;font-family:var(--mono);font-size:12px;padding:5px 7px;border:1px solid var(--rule-2);border-radius:6px;background:var(--paper);color:var(--ink)}
+  input:focus-visible,button:focus-visible{outline:2px solid var(--ax-z);outline-offset:1px}
+  label.chk{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:13px;color:var(--ink-2);margin-top:10px}
+  input[type=checkbox]{width:15px;height:15px;accent-color:var(--ink);cursor:pointer}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  button{font-family:var(--sans);font-size:13px;padding:7px 13px;border:1px solid var(--rule-2);border-radius:7px;background:var(--card);color:var(--ink);cursor:pointer}
+  button:hover{background:var(--paper);border-color:var(--ink-3)}
+  button.solid{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  button.solid:hover{opacity:.88;background:var(--ink)}
+  .note{font-size:12.5px;color:var(--ink-3);margin-top:14px;max-width:62ch}
+  .flag{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:8px;min-height:16px}
+  @media (prefers-reduced-motion: reduce){canvas{}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Displacement vector between atoms I and J</h1>
+  <span class="sub">drag to rotate</span>
+</header>
+
+<div class="stage">
+  <canvas id="cv" width="1125" height="650" style="height: 495.964px;"></canvas>
+  <div class="readout">
+    <span>|d| <b id="r-mag">2.311</b></span>
+    <span>θ <b id="r-pol">77.5°</b></span>
+    <span>φ <b id="r-azi">192.8°</b></span>
+    <span>unit <b id="r-unit">(-0.95, -0.22, 0.22)</b></span>
+    <span>dir <b id="r-dir">d_ji</b></span>
+  </div>
+</div>
+
+<div class="panels">
+
+  <fieldset>
+    <legend>Displacement d<sub>ji</sub></legend>
+    <div class="row"><span class="key"><i style="color:var(--ax-x)">d</i><sub>x</sub></span><input type="range" id="dx" min="-2.9" max="0.9" step="0.1"><span class="val" id="dx-v">-2.2</span></div>
+    <div class="row"><span class="key"><i style="color:var(--ax-y)">d</i><sub>y</sub></span><input type="range" id="dy" min="-0.9" max="0.9" step="0.1"><span class="val" id="dy-v">-0.5</span></div>
+    <div class="row"><span class="key"><i style="color:var(--ax-z)">d</i><sub>z</sub></span><input type="range" id="dz" min="-0.9" max="0.9" step="0.1"><span class="val" id="dz-v">0.5</span></div>
+    <label class="chk"><input type="checkbox" id="comps"> Show component legs</label>
+    <label class="chk"><input type="checkbox" id="cellchk"> Show cell box</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Atom J position</legend>
+    <div class="row"><span class="key">x, y, z</span>
+      <input type="number" id="jx" step="0.1"><input type="number" id="jy" step="0.1"><input type="number" id="jz" step="0.1">
+    </div>
+    <div class="row"><span class="key">Cell x</span><input type="number" id="cx0" step="0.1"><input type="number" id="cx1" step="0.1"></div>
+    <div class="row"><span class="key">Cell y, z</span><input type="number" id="cy1" step="0.1"><input type="number" id="cz1" step="0.1"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Motion</legend>
+    <div class="row"><span class="key">Spin</span><input type="range" id="spd" min="0" max="60" step="1"><span class="val" id="spd-v">4°/s</span></div>
+    <div class="row"><span class="key">Sweep time</span><input type="range" id="dur" min="0.3" max="5" step="0.1"><span class="val" id="dur-v">2.0 s</span></div>
+    <div class="row"><span class="key">Tilt</span><input type="range" id="tlt" min="-10" max="60" step="1"><span class="val" id="tlt-v">11°</span></div>
+    <div class="row"><span class="key">Zoom</span><input type="range" id="scl" min="60" max="190" step="1"><span class="val" id="scl-v">190</span></div>
+    <label class="chk"><input type="checkbox" id="spin"> Rotate the cell</label>
+    <label class="chk"><input type="checkbox" id="sweep"> Sweep J&nbsp;→&nbsp;I and back</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Keep these settings</legend>
+    <p class="note" style="margin-top:2px">Changes save to this browser as you make them. Save a copy to get an HTML file with the current numbers written in, so it opens this way anywhere.</p>
+    <div class="btns">
+      <button class="solid" id="save">Save a copy</button>
+      <button id="png">Save image</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="flag" id="flag"></div>
+  </fieldset>
+
+</div>
+
+<p class="note">Component legs run x then y then z from J, so the staircase shows how the vector splits across the axes. Sweep direction sets the sign: d<sub>ji</sub> points from J to I, d<sub>ij</sub> is the same line with every component negated.</p>
+
+</div>
+
+<script>
+(function(){
+  var DEF = JSON.parse(document.getElementById('cfg').textContent);
+  var KEY = 'displacement-viewer-v1';
+  var S = JSON.parse(JSON.stringify(DEF));
+  try { var st = localStorage.getItem(KEY); if (st) { var o = JSON.parse(st); for (var k in o) S[k] = o[k]; } } catch(e){}
+
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  var W = 900, H = 520, drag = null, sp = 0, back = false, HOLD = 0.28;
+
+  function C(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function fit(){
+    var r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    cv.width = W*d; cv.height = H*d; cv.style.height = (H*r.width/W)+'px';
+    ctx.setTransform(d,0,0,d,0,0);
+  }
+  function mid(){ return [ (S.cell.x[0]+S.cell.x[1])/2, (S.cell.y[0]+S.cell.y[1])/2, (S.cell.z[0]+S.cell.z[1])/2 ]; }
+  function I(){ return [S.J[0]+S.D[0], S.J[1]+S.D[1], S.J[2]+S.D[2]]; }
+  function lerp(a,b,f){ return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f]; }
+
+  function proj(p){
+    var m = mid(), x = p[0]-m[0], y = p[1]-m[1], z = p[2]-m[2];
+    var rx = x*Math.cos(S.theta) - y*Math.sin(S.theta);
+    var ry = x*Math.sin(S.theta) + y*Math.cos(S.theta);
+    return { x: W/2 + rx*S.scale,
+             y: H/2 + 20 - (z*Math.cos(S.phi) - ry*Math.sin(S.phi))*S.scale,
+             d: ry*Math.cos(S.phi) + z*Math.sin(S.phi) };
+  }
+  function seg(a,b,col,w,dash,al){
+    ctx.save(); ctx.globalAlpha = al===undefined?1:al; ctx.setLineDash(dash||[]);
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round';
+    var p = proj(a), q = proj(b);
+    ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke(); ctx.restore();
+  }
+  function txt(p,s,col,size,wt,ox,oy){
+    var q = proj(p); ctx.fillStyle = col;
+    ctx.font = (wt||400)+' '+(size||12)+'px '+C('--sans');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(s, q.x+(ox||0), q.y+(oy||0));
+  }
+  function arrow(a,b,col,w,dash,g0,g1){
+    var p = proj(a), q = proj(b), dx = q.x-p.x, dy = q.y-p.y, L = Math.hypot(dx,dy);
+    if (L < 3) return;
+    var ux = dx/L, uy = dy/L, hl = 13, hw = 5.5;
+    var tx = q.x-ux*g1, ty = q.y-uy*g1;
+    ctx.save(); ctx.setLineDash(dash||[]); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(p.x+ux*g0, p.y+uy*g0); ctx.lineTo(tx-ux*hl*0.8, ty-uy*hl*0.8); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(tx,ty);
+    ctx.lineTo(tx-ux*hl - uy*hw, ty-uy*hl + ux*hw);
+    ctx.lineTo(tx-ux*hl + uy*hw, ty-uy*hl - ux*hw);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  function atom(p,r,col,lab){
+    var q = proj(p);
+    ctx.beginPath(); ctx.arc(q.x,q.y,r,0,6.2832); ctx.fillStyle = col; ctx.fill();
+    ctx.fillStyle = col; ctx.font = '500 13px '+C('--sans');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(lab, q.x, q.y-r-10);
+  }
+
+  function draw(){
+    var ink = C('--ink'), i2 = C('--ink-2'), i3 = C('--ink-3'), rule = C('--rule-2');
+    var AX = C('--ax-x'), AY = C('--ax-y'), AZ = C('--ax-z');
+    var bx = S.cell.x, by = S.cell.y, bz = S.cell.z;
+    ctx.clearRect(0,0,W,H);
+
+    if (S.showCell){
+      var V = [];
+      for (var a=0;a<2;a++) for (var b=0;b<2;b++) for (var c=0;c<2;c++) V.push([bx[a],by[b],bz[c]]);
+      var E = [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
+      for (var e=0;e<E.length;e++) seg(V[E[e][0]], V[E[e][1]], rule, 0.8);
+    }
+    seg([bx[0],by[0],bz[0]], [bx[1]+0.06,by[0],bz[0]], AX, 1.3);
+    seg([bx[1],by[0],bz[0]], [bx[1],by[1]*0.75,bz[0]], AY, 1.3);
+    seg([bx[1],by[0],bz[0]], [bx[1],by[0],bz[1]], AZ, 1.3);
+    txt([bx[1]+0.3,by[0],bz[0]], 'x', AX, 12, 500);
+    txt([bx[1],by[1]*0.75+0.14,bz[0]], 'y', AY, 12, 500);
+    txt([bx[1],by[0],bz[1]+0.14], 'z', AZ, 12, 500);
+    var lo = Math.ceil(bx[0]), hi = Math.floor(bx[1]);
+    for (var t=lo;t<=hi;t++){ seg([t,by[0],bz[0]], [t,by[0]+0.06,bz[0]], AX, 1); txt([t,by[0],bz[0]], String(t), i3, 11, 400, 0, 13); }
+    seg([bx[1],by[0],by[1]], [bx[1]-0.06,by[0],by[1]], AZ, 1);
+    txt([bx[1],by[0],by[1]], String(by[1]), i3, 11, 400, 15, 0);
+
+    var Ip = I();
+    if (S.showComps){
+      var c1 = [Ip[0],S.J[1],S.J[2]], c2 = [Ip[0],Ip[1],S.J[2]];
+      seg(S.J,c1,AX,1,[3,3],0.5); seg(c1,c2,AY,1,[3,3],0.5); seg(c2,Ip,AZ,1,[3,3],0.5);
+    }
+    seg(S.J, Ip, i3, 1, [2,5], 0.3);
+
+    var tail = back ? Ip : S.J, head = back ? S.J : Ip;
+    var f = S.sweepOn ? Math.min(1, sp) : 1;
+    f = f*f*(3-2*f);
+    var tip = lerp(tail, head, f);
+    var g1 = 2 + (back?7:9)*Math.max(0,(f-0.8)/0.2);
+    arrow(tail, tip, ink, 2, [3,4], back?9:11, g1);
+    if (S.sweepOn && f < 0.999){
+      var qp = proj(tip);
+      ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = ink;
+      ctx.beginPath(); ctx.arc(qp.x,qp.y,3.5,0,6.2832); ctx.fill(); ctx.restore();
+    }
+
+    var order = [{p:Ip,r:8,c:C('--at-i'),l:'I'},{p:S.J,r:6,c:C('--at-j'),l:'J'}];
+    order.sort(function(a,b){ return proj(a.p).d - proj(b.p).d; });
+    for (var z=0;z<order.length;z++) atom(order[z].p, order[z].r, order[z].c, order[z].l);
+
+    var sgn = back ? -1 : 1, sub = back ? 'ij' : 'ji';
+    var pj = proj(S.J), qi = proj(Ip), mx = (pj.x+qi.x)/2, my = (pj.y+qi.y)/2;
+    var L = Math.hypot(S.D[0],S.D[1],S.D[2]);
+    var s1 = 'Displacement', s3 = ' = ('+(sgn*S.D[0]).toFixed(1)+', '+(sgn*S.D[1]).toFixed(1)+', '+(sgn*S.D[2]).toFixed(1)+')';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '400 13.5px '+C('--sans'); var w1 = ctx.measureText(s1).width, w3 = ctx.measureText(s3).width;
+    ctx.font = '400 9.5px '+C('--sans'); var w2 = ctx.measureText(sub).width;
+    var tot = w1+w2+w3, sx = Math.min(Math.max(mx-tot/2, 14), W-tot-14), sy = Math.min(Math.max(my-18, 26), H-34);
+    ctx.font = '400 13.5px '+C('--sans'); ctx.fillStyle = ink; ctx.fillText(s1, sx, sy);
+    ctx.font = '400 9.5px '+C('--sans'); ctx.fillText(sub, sx+w1, sy+3);
+    ctx.font = '400 13.5px '+C('--sans'); ctx.fillText(s3, sx+w1+w2, sy);
+    ctx.font = '400 12px '+C('--mono'); ctx.fillStyle = i2;
+    ctx.fillText('|d| = '+L.toFixed(2)+(S.labelUnit?' '+S.labelUnit:'')+'   '+(back?'I \u2192 J':'J \u2192 I'), sx+w1, sy+18);
+
+    ctx.font = '400 11px '+C('--mono'); ctx.fillStyle = i3;
+    ctx.fillText('I ('+Ip[0].toFixed(1)+', '+Ip[1].toFixed(1)+', '+Ip[2].toFixed(1)+')    J ('+S.J[0].toFixed(1)+', '+S.J[1].toFixed(1)+', '+S.J[2].toFixed(1)+')', 16, 24);
+
+    var pol = Math.acos(Math.max(-1,Math.min(1, S.D[2]/(L||1))))*180/Math.PI;
+    var azi = (Math.atan2(S.D[1],S.D[0])*180/Math.PI + 360) % 360;
+    document.getElementById('r-mag').textContent = L.toFixed(3);
+    document.getElementById('r-pol').textContent = pol.toFixed(1)+'\u00b0';
+    document.getElementById('r-azi').textContent = azi.toFixed(1)+'\u00b0';
+    document.getElementById('r-unit').textContent = '('+(sgn*S.D[0]/(L||1)).toFixed(2)+', '+(sgn*S.D[1]/(L||1)).toFixed(2)+', '+(sgn*S.D[2]/(L||1)).toFixed(2)+')';
+    document.getElementById('r-dir').textContent = back ? 'd_ij' : 'd_ji';
+  }
+
+  var last = performance.now();
+  function loop(t){
+    var dt = Math.min(0.05, (t-last)/1000); last = t;
+    if (S.spin && !drag) S.theta += S.spinSpeed*Math.PI/180*dt;
+    if (S.sweepOn){ sp += dt/S.sweepDur; if (sp >= 1+HOLD){ sp = 0; back = !back; } }
+    draw(); requestAnimationFrame(loop);
+  }
+
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+  function el(id){ return document.getElementById(id); }
+
+  function bindRange(id, get, set, fmt){
+    var r = el(id), v = el(id+'-v');
+    r.value = get(); v.textContent = fmt(get());
+    r.addEventListener('input', function(){ set(parseFloat(r.value)); v.textContent = fmt(parseFloat(r.value)); save(); });
+  }
+  function bindCheck(id, get, set){
+    var c = el(id); c.checked = get();
+    c.addEventListener('change', function(){ set(c.checked); save(); });
+  }
+  function bindNum(id, get, set){
+    var n = el(id); n.value = get();
+    n.addEventListener('change', function(){ var x = parseFloat(n.value); if (!isNaN(x)){ set(x); save(); } });
+  }
+
+  bindRange('dx', function(){return S.D[0];}, function(v){S.D[0]=v;}, function(v){return v.toFixed(1);});
+  bindRange('dy', function(){return S.D[1];}, function(v){S.D[1]=v;}, function(v){return v.toFixed(1);});
+  bindRange('dz', function(){return S.D[2];}, function(v){S.D[2]=v;}, function(v){return v.toFixed(1);});
+  bindRange('spd', function(){return S.spinSpeed;}, function(v){S.spinSpeed=v;}, function(v){return Math.round(v)+'\u00b0/s';});
+  bindRange('dur', function(){return S.sweepDur;}, function(v){S.sweepDur=v;}, function(v){return v.toFixed(1)+' s';});
+  bindRange('tlt', function(){return S.phi*180/Math.PI;}, function(v){S.phi=v*Math.PI/180;}, function(v){return Math.round(v)+'\u00b0';});
+  bindRange('scl', function(){return S.scale;}, function(v){S.scale=v;}, function(v){return Math.round(v)+'';});
+  bindCheck('comps', function(){return S.showComps;}, function(v){S.showComps=v;});
+  bindCheck('cellchk', function(){return S.showCell;}, function(v){S.showCell=v;});
+  bindCheck('spin', function(){return S.spin;}, function(v){S.spin=v;});
+  bindCheck('sweep', function(){return S.sweepOn;}, function(v){S.sweepOn=v; sp=0; back=false;});
+  bindNum('jx', function(){return S.J[0];}, function(v){S.J[0]=v;});
+  bindNum('jy', function(){return S.J[1];}, function(v){S.J[1]=v;});
+  bindNum('jz', function(){return S.J[2];}, function(v){S.J[2]=v;});
+  bindNum('cx0', function(){return S.cell.x[0];}, function(v){S.cell.x[0]=v;});
+  bindNum('cx1', function(){return S.cell.x[1];}, function(v){S.cell.x[1]=v;});
+  bindNum('cy1', function(){return S.cell.y[1];}, function(v){S.cell.y[1]=v;});
+  bindNum('cz1', function(){return S.cell.z[1];}, function(v){S.cell.z[1]=v;});
+
+  function flag(msg){ var f = el('flag'); f.textContent = msg; setTimeout(function(){ if (f.textContent === msg) f.textContent = ''; }, 3200); }
+
+  el('save').addEventListener('click', function(){
+    document.getElementById('cfg').textContent = '\n' + JSON.stringify(S, null, 2) + '\n';
+    var html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+    var url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
+    var a = document.createElement('a');
+    a.href = url; a.download = 'displacement-vector-viewer.html'; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    flag('Saved a copy with the current numbers.');
+  });
+
+  el('png').addEventListener('click', function(){
+    var a = document.createElement('a');
+    a.href = cv.toDataURL('image/png'); a.download = 'displacement-vector.png'; a.click();
+    flag('Saved the current frame as PNG.');
+  });
+
+  el('reset').addEventListener('click', function(){
+    try { localStorage.removeItem(KEY); } catch(e){}
+    location.reload();
+  });
+
+  function pt(e){
+    var r = cv.getBoundingClientRect();
+    var cx = e.touches ? e.touches[0].clientX : e.clientX;
+    var cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: cx-r.left, y: cy-r.top, k: W/r.width };
+  }
+  function down(e){ drag = pt(e); }
+  function move(e){
+    if (!drag) return;
+    var p = pt(e);
+    S.theta += (p.x-drag.x)*p.k*0.006;
+    S.phi = Math.max(-0.2, Math.min(1.05, S.phi + (p.y-drag.y)*p.k*0.004));
+    el('tlt').value = Math.round(S.phi*180/Math.PI);
+    el('tlt-v').textContent = Math.round(S.phi*180/Math.PI)+'\u00b0';
+    drag = p; e.preventDefault();
+  }
+  function up(){ if (drag){ drag = null; save(); } }
+  cv.addEventListener('mousedown', down);
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+  cv.addEventListener('touchstart', down, {passive:true});
+  cv.addEventListener('touchmove', move, {passive:false});
+  cv.addEventListener('touchend', up);
+
+  fit();
+  window.addEventListener('resize', fit);
+  requestAnimationFrame(loop);
+})();
+</script>
+
+
+</body></html>
