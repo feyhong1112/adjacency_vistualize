@@ -1,0 +1,124 @@
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">A rotating 3D cell where the displacement arrow sweeps from atom J to atom I and back again, with a slider controlling the sweep duration.</h2>
+<div style="padding:1rem 0">
+  <canvas id="cv4" style="width:100%;display:block"></canvas>
+  <div style="display:flex;align-items:center;gap:14px;margin-top:12px;font-size:13px;color:var(--text-secondary);flex-wrap:wrap">
+    <button id="pp4" style="min-width:88px"><i class="ti ti-player-pause" aria-hidden="true"></i> Pause</button>
+    <button id="sw4" style="min-width:100px"><i class="ti ti-player-play" aria-hidden="true"></i> Sweep on</button>
+    <button id="rs4" style="min-width:84px"><i class="ti ti-refresh" aria-hidden="true"></i> Reset</button>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none"><input type="checkbox" id="cp4" checked style="width:14px;height:14px;accent-color:var(--text-accent)"> Components</label>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:12px;font-size:13px;color:var(--text-secondary)">
+    <span style="min-width:96px">Sweep time</span>
+    <input type="range" id="dur4" min="0.3" max="5" step="0.1" value="1.6" style="flex:1">
+    <span id="durv4" style="min-width:44px;text-align:right;font-variant-numeric:tabular-nums">1.6 s</span>
+  </div>
+  <div id="sl4" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 18px;margin-top:14px;font-size:13px;color:var(--text-secondary)"></div>
+</div>
+<script>
+(function(){
+  const cv=document.getElementById('cv4'),ctx=cv.getContext('2d');
+  const W=680,H=440;
+  function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#888';}
+  function fit(){const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;cv.width=W*d;cv.height=H*d;cv.style.height=(H*r.width/W)+'px';ctx.setTransform(d,0,0,d,0,0);}
+  const J=[-0.7,0.5,0.50], D0=[-2.3,0.3,0.2];
+  let D=D0.slice();
+  const bx=[-3.6,0.2], by=[0,1], bz=[0,1.1];
+  const C=[(bx[0]+bx[1])/2,(by[0]+by[1])/2,(bz[0]+bz[1])/2];
+  let th=-0.35, phi=22*Math.PI/180, S=114, spinning=true, drag=null, showComp=true;
+  let sweepOn=true, dur=1.6, sp=0, back=false, HOLD=0.28;
+  const I=()=>[J[0]+D[0],J[1]+D[1],J[2]+D[2]];
+  const lerp=(a,b,f)=>[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];
+  function proj(p){
+    const x=p[0]-C[0],y=p[1]-C[1],z=p[2]-C[2];
+    const rx=x*Math.cos(th)-y*Math.sin(th), ry=x*Math.sin(th)+y*Math.cos(th);
+    return{x:W/2+rx*S, y:H/2+18-(z*Math.cos(phi)-ry*Math.sin(phi))*S, d:ry*Math.cos(phi)+z*Math.sin(phi)};
+  }
+  function seg(a,b,col,w,dash,alpha){ctx.save();ctx.globalAlpha=alpha||1;ctx.setLineDash(dash||[]);ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='round';ctx.beginPath();const p=proj(a),q=proj(b);ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.restore();}
+  function txt(p,s,col,size,wt,off){const q=proj(p);ctx.fillStyle=col;ctx.font=(wt||400)+' '+(size||12)+'px "Anthropic Sans", sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(s,q.x+((off&&off[0])||0),q.y+((off&&off[1])||0));}
+  function arrow(a,b,col,w,dash,alpha,g0,g1){
+    const p=proj(a),q=proj(b);let dx=q.x-p.x,dy=q.y-p.y,L=Math.hypot(dx,dy);if(L<3)return;
+    const ux=dx/L,uy=dy/L,hl=12,hw=5;
+    const tipx=q.x-ux*g1,tipy=q.y-uy*g1;
+    ctx.save();ctx.globalAlpha=alpha||1;ctx.setLineDash(dash||[]);ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(p.x+ux*g0,p.y+uy*g0);ctx.lineTo(tipx-ux*hl*0.8,tipy-uy*hl*0.8);ctx.stroke();
+    ctx.setLineDash([]);ctx.fillStyle=col;ctx.beginPath();
+    ctx.moveTo(tipx,tipy);ctx.lineTo(tipx-ux*hl+(-uy)*hw,tipy-uy*hl+ux*hw);ctx.lineTo(tipx-ux*hl-(-uy)*hw,tipy-uy*hl-ux*hw);
+    ctx.closePath();ctx.fill();ctx.restore();
+  }
+  function atom(p,r,col,lab){const q=proj(p);ctx.beginPath();ctx.arc(q.x,q.y,r,0,6.2832);ctx.fillStyle=col;ctx.fill();ctx.fillStyle=col;ctx.font='500 13px "Anthropic Sans", sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(lab,q.x,q.y-r-9);}
+  function draw(){
+    const bd=css('--border-strong'),tp=css('--text-primary'),ts=css('--text-secondary'),tm=css('--text-muted');
+    ctx.clearRect(0,0,W,H);
+    const V=[];for(const i of[0,1])for(const j of[0,1])for(const k of[0,1])V.push([bx[i],by[j],bz[k]]);
+    const E=[[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
+    for(const e of E)seg(V[e[0]],V[e[1]],bd,0.6);
+    seg([bx[0],by[0],bz[0]],[bx[1]+0.05,by[0],bz[0]],'#E24B4A',1.2);
+    seg([bx[1],by[0],bz[0]],[bx[1],by[1]*0.75,bz[0]],'#639922',1.2);
+    seg([bx[1],by[0],bz[0]],[bx[1],by[0],bz[1]],'#378ADD',1.2);
+    txt([bx[1]+0.28,by[0],bz[0]],'x','#E24B4A',12,500);
+    txt([bx[1],by[1]*0.75+0.12,bz[0]],'y','#639922',12,500);
+    txt([bx[1],by[0],bz[1]+0.12],'z','#378ADD',12,500);
+    for(const t of[-3,-2,-1,0]){seg([t,by[0],bz[0]],[t,by[0]+0.06,bz[0]],'#E24B4A',1);txt([t,by[0],bz[0]],String(t),tm,11,400,[0,12]);}
+    seg([bx[1],by[0],1],[bx[1]-0.06,by[0],1],'#378ADD',1);txt([bx[1],by[0],1],'1',tm,11,400,[14,0]);
+    const Ip=I();
+    if(showComp){
+      const c1=[Ip[0],J[1],J[2]],c2=[Ip[0],Ip[1],J[2]];
+      seg(J,c1,'#E24B4A',1,[3,3],0.5);seg(c1,c2,'#639922',1,[3,3],0.5);seg(c2,Ip,'#378ADD',1,[3,3],0.5);
+    }
+    seg(J,Ip,ts,1,[2,5],0.35);
+    const tail=back?Ip:J, head=back?J:Ip;
+    let f=sweepOn?Math.min(1,sp):1;
+    f=f*f*(3-2*f);
+    const tipP=lerp(tail,head,f);
+    const g0=back?8:10, g1=2+(back?6:8)*Math.max(0,(f-0.8)/0.2);
+    arrow(tail,tipP,tp,2,[3,4],1,g0,g1);
+    if(sweepOn&&f<0.999){const q=proj(tipP);ctx.beginPath();ctx.arc(q.x,q.y,3.5,0,6.2832);ctx.fillStyle=tp;ctx.globalAlpha=0.5;ctx.fill();ctx.globalAlpha=1;}
+    const zo=[{p:Ip,c:'#A32D2D',r:8,l:'I'},{p:J,c:'#888780',r:6,l:'J'}].sort((a,b)=>proj(a.p).d-proj(b.p).d);
+    for(const a of zo)atom(a.p,a.r,a.c,a.l);
+    const L=Math.hypot(D[0],D[1],D[2]), sgn=back?-1:1, lbl=back?'ij':'ji';
+    const pj=proj(J),qi=proj(Ip),mx=(pj.x+qi.x)/2,my=(pj.y+qi.y)/2;
+    const s1='Displacement',s3=' = ('+(sgn*D[0]).toFixed(1)+', '+(sgn*D[1]).toFixed(1)+', '+(sgn*D[2]).toFixed(1)+')';
+    ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    ctx.font='400 13px "Anthropic Sans", sans-serif';const w1=ctx.measureText(s1).width,w3=ctx.measureText(s3).width;
+    ctx.font='400 9px "Anthropic Sans", sans-serif';const w2=ctx.measureText(lbl).width;
+    const tot=w1+w2+w3,sx=Math.min(Math.max(mx-tot/2,12),W-tot-12),sy=Math.min(Math.max(my-16,22),H-32);
+    ctx.font='400 13px "Anthropic Sans", sans-serif';ctx.fillStyle=tp;ctx.fillText(s1,sx,sy);
+    ctx.font='400 9px "Anthropic Sans", sans-serif';ctx.fillText(lbl,sx+w1,sy+3);
+    ctx.font='400 13px "Anthropic Sans", sans-serif';ctx.fillText(s3,sx+w1+w2,sy);
+    ctx.font='400 12px "Anthropic Sans", sans-serif';ctx.fillStyle=ts;
+    ctx.fillText('|d| = '+L.toFixed(2)+'    '+(back?'I \u2192 J':'J \u2192 I'),sx+w1,sy+18);
+    const pol=Math.acos(Math.max(-1,Math.min(1,D[2]/(L||1))))*180/Math.PI;
+    const azi=(Math.atan2(D[1],D[0])*180/Math.PI+360)%360;
+    ctx.font='400 11px "Anthropic Sans", sans-serif';ctx.fillStyle=tm;
+    ctx.fillText('polar \u03b8 = '+pol.toFixed(0)+'\u00b0   azimuth \u03c6 = '+azi.toFixed(0)+'\u00b0   unit ('+(sgn*D[0]/(L||1)).toFixed(2)+', '+(sgn*D[1]/(L||1)).toFixed(2)+', '+(sgn*D[2]/(L||1)).toFixed(2)+')',14,24);
+    ctx.fillText('I ('+Ip.map(v=>v.toFixed(1)).join(', ')+')   J ('+J.map(v=>v.toFixed(1)).join(', ')+')',14,42);
+  }
+  const defs=[['x',-2.9,0.9],['y',-0.5,0.5],['z',-0.5,0.6]],cols=['#E24B4A','#639922','#378ADD'];
+  const box=document.getElementById('sl4');
+  defs.forEach(function(d,i){
+    const w=document.createElement('div');w.style.cssText='display:flex;align-items:center;gap:8px';
+    w.innerHTML='<span style="color:'+cols[i]+';font-weight:500;min-width:16px">d'+d[0]+'</span><input type="range" min="'+d[1]+'" max="'+d[2]+'" step="0.1" value="'+D0[i]+'" style="flex:1"><span style="min-width:34px;text-align:right;font-variant-numeric:tabular-nums">'+D0[i].toFixed(1)+'</span>';
+    const inp=w.querySelector('input'),out=w.querySelector('span:last-child');
+    inp.oninput=function(){D[i]=+this.value;out.textContent=D[i].toFixed(1);};
+    box.appendChild(w);
+  });
+  let last=performance.now();
+  function loop(t){
+    const dt=Math.min(0.05,(t-last)/1000);last=t;
+    if(spinning&&!drag)th+=20*Math.PI/180*dt;
+    if(sweepOn){sp+=dt/dur;if(sp>=1+HOLD){sp=0;back=!back;}}
+    draw();requestAnimationFrame(loop);
+  }
+  document.getElementById('pp4').onclick=function(){spinning=!spinning;this.innerHTML=spinning?'<i class="ti ti-player-pause" aria-hidden="true"></i> Pause':'<i class="ti ti-player-play" aria-hidden="true"></i> Spin';};
+  document.getElementById('sw4').onclick=function(){sweepOn=!sweepOn;sp=0;this.innerHTML=sweepOn?'<i class="ti ti-player-play" aria-hidden="true"></i> Sweep on':'<i class="ti ti-player-stop" aria-hidden="true"></i> Sweep off';};
+  document.getElementById('dur4').oninput=function(){dur=+this.value;document.getElementById('durv4').textContent=dur.toFixed(1)+' s';};
+  document.getElementById('cp4').onchange=function(){showComp=this.checked;};
+  document.getElementById('rs4').onclick=function(){D=D0.slice();sp=0;back=false;box.querySelectorAll('div').forEach(function(w,i){w.querySelector('input').value=D0[i];w.querySelector('span:last-child').textContent=D0[i].toFixed(1);});};
+  function pos(e){const r=cv.getBoundingClientRect();return{x:(e.touches?e.touches[0].clientX:e.clientX)-r.left,y:(e.touches?e.touches[0].clientY:e.clientY)-r.top,k:W/r.width};}
+  function down(e){drag=pos(e);}
+  function move(e){if(!drag)return;const p=pos(e);th+=(p.x-drag.x)*p.k*0.006;phi=Math.max(-0.2,Math.min(1.05,phi+(p.y-drag.y)*p.k*0.004));drag=p;e.preventDefault();}
+  cv.addEventListener('mousedown',down);window.addEventListener('mousemove',move);window.addEventListener('mouseup',function(){drag=null;});
+  cv.addEventListener('touchstart',down,{passive:true});cv.addEventListener('touchmove',move,{passive:false});cv.addEventListener('touchend',function(){drag=null;});
+  cv.style.cursor='grab';fit();window.addEventListener('resize',fit);requestAnimationFrame(loop);
+})();
+</script>
