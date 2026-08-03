@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Displacement vector I–J</title>
+<style>
+  :root{
+    --paper:#F7F6F3; --card:#FFFFFF; --ink:#1C1B19; --ink-2:#5C5A54; --ink-3:#8E8B83;
+    --rule:#DEDBD3; --rule-2:#C9C5BB;
+    --ax-x:#B23A32; --ax-y:#4A7A24; --ax-z:#2E6FB0;
+    --at-i:#9B2C2C; --at-j:#8A887F;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#171614; --card:#1F1E1B; --ink:#EDEBE5; --ink-2:#A8A59C; --ink-3:#787569;
+      --rule:#312F2B; --rule-2:#43403A;
+      --ax-x:#E4675C; --ax-y:#8CC24F; --ax-z:#68A8E8;
+      --at-i:#D65A54; --at-j:#9C998F;
+    }
+  }
+html,body{margin:0;height:100%;overflow:hidden;background:var(--paper)}canvas{display:block;cursor:grab;touch-action:none}canvas:active{cursor:grabbing}</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<script>
+
+window.DVIEW = function(cv, S, opts){
+  opts = opts || {};
+  var ctx = cv.getContext('2d');
+  var fill = !!opts.fill;
+  var W = 900, H = 520, base = 1;
+  var drag = null, sp = 0, back = false, HOLD = 0.28, last = performance.now();
+
+  function C(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+  function fitCanvas(){
+    var d = window.devicePixelRatio || 1;
+    if (fill){
+      W = Math.max(360, window.innerWidth);
+      H = Math.max(320, window.innerHeight);
+      base = Math.min(W/900, H/520);
+      cv.style.width = W+'px'; cv.style.height = H+'px';
+    } else {
+      W = 900; H = 520; base = 1;
+      var r = cv.getBoundingClientRect();
+      cv.style.height = (H*r.width/W)+'px';
+    }
+    cv.width = W*d; cv.height = H*d;
+    ctx.setTransform(d,0,0,d,0,0);
+  }
+
+  function sc(){ return S.scale * base; }
+  function mid(){ return [ (S.cell.x[0]+S.cell.x[1])/2, (S.cell.y[0]+S.cell.y[1])/2, (S.cell.z[0]+S.cell.z[1])/2 ]; }
+  function atomI(){ return [S.J[0]+S.D[0], S.J[1]+S.D[1], S.J[2]+S.D[2]]; }
+  function lerp(a,b,f){ return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f]; }
+
+  function proj(p){
+    var m = mid(), x = p[0]-m[0], y = p[1]-m[1], z = p[2]-m[2], k = sc();
+    var rx = x*Math.cos(S.theta) - y*Math.sin(S.theta);
+    var ry = x*Math.sin(S.theta) + y*Math.cos(S.theta);
+    return { x: W/2 + rx*k,
+             y: H/2 + 20*base - (z*Math.cos(S.phi) - ry*Math.sin(S.phi))*k,
+             d: ry*Math.cos(S.phi) + z*Math.sin(S.phi) };
+  }
+  function seg(a,b,col,w,dash,al){
+    ctx.save(); ctx.globalAlpha = al===undefined?1:al; ctx.setLineDash(dash||[]);
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round';
+    var p = proj(a), q = proj(b);
+    ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke(); ctx.restore();
+  }
+  function txt(p,s,col,size,wt,ox,oy){
+    var q = proj(p); ctx.fillStyle = col;
+    ctx.font = (wt||400)+' '+(size||12)+'px '+C('--sans');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(s, q.x+(ox||0), q.y+(oy||0));
+  }
+  function arrow(a,b,col,w,dash,g0,g1){
+    var p = proj(a), q = proj(b), dx = q.x-p.x, dy = q.y-p.y, L = Math.hypot(dx,dy);
+    if (L < 3) return;
+    var ux = dx/L, uy = dy/L, hl = 13, hw = 5.5;
+    var tx = q.x-ux*g1, ty = q.y-uy*g1;
+    ctx.save(); ctx.setLineDash(dash||[]); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(p.x+ux*g0, p.y+uy*g0); ctx.lineTo(tx-ux*hl*0.8, ty-uy*hl*0.8); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(tx,ty);
+    ctx.lineTo(tx-ux*hl - uy*hw, ty-uy*hl + ux*hw);
+    ctx.lineTo(tx-ux*hl + uy*hw, ty-uy*hl - ux*hw);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  function atom(p,r,col,lab){
+    var q = proj(p);
+    ctx.beginPath(); ctx.arc(q.x,q.y,r,0,6.2832); ctx.fillStyle = col; ctx.fill();
+    ctx.fillStyle = col; ctx.font = '500 13px '+C('--sans');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(lab, q.x, q.y-r-10);
+  }
+
+  function draw(){
+    var ink = C('--ink'), i2 = C('--ink-2'), i3 = C('--ink-3'), rule = C('--rule-2');
+    var AX = C('--ax-x'), AY = C('--ax-y'), AZ = C('--ax-z');
+    var bx = S.cell.x, by = S.cell.y, bz = S.cell.z;
+    ctx.clearRect(0,0,W,H);
+
+    if (S.showCell){
+      var V = [], a, b, c, e;
+      for (a=0;a<2;a++) for (b=0;b<2;b++) for (c=0;c<2;c++) V.push([bx[a],by[b],bz[c]]);
+      var E = [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
+      for (e=0;e<E.length;e++) seg(V[E[e][0]], V[E[e][1]], rule, 0.8);
+    }
+    seg([bx[0],by[0],bz[0]], [bx[1]+0.06,by[0],bz[0]], AX, 1.3);
+    seg([bx[1],by[0],bz[0]], [bx[1],by[1]*0.75,bz[0]], AY, 1.3);
+    seg([bx[1],by[0],bz[0]], [bx[1],by[0],bz[1]], AZ, 1.3);
+    txt([bx[1]+0.3,by[0],bz[0]], 'x', AX, 12, 500);
+    txt([bx[1],by[1]*0.75+0.14,bz[0]], 'y', AY, 12, 500);
+    txt([bx[1],by[0],bz[1]+0.14], 'z', AZ, 12, 500);
+    var lo = Math.ceil(bx[0]), hi = Math.floor(bx[1]), t;
+    for (t=lo;t<=hi;t++){ seg([t,by[0],bz[0]], [t,by[0]+0.06,bz[0]], AX, 1); txt([t,by[0],bz[0]], String(t), i3, 11, 400, 0, 13); }
+    seg([bx[1],by[0],by[1]], [bx[1]-0.06,by[0],by[1]], AZ, 1);
+    txt([bx[1],by[0],by[1]], String(by[1]), i3, 11, 400, 15, 0);
+
+    var Ip = atomI();
+    if (S.showComps){
+      var c1 = [Ip[0],S.J[1],S.J[2]], c2 = [Ip[0],Ip[1],S.J[2]];
+      seg(S.J,c1,AX,1,[3,3],0.5); seg(c1,c2,AY,1,[3,3],0.5); seg(c2,Ip,AZ,1,[3,3],0.5);
+    }
+    seg(S.J, Ip, i3, 1, [2,5], 0.3);
+
+    var tail = back ? Ip : S.J, head = back ? S.J : Ip;
+    var f = S.sweepOn ? Math.min(1, sp) : 1;
+    f = f*f*(3-2*f);
+    var tip = lerp(tail, head, f);
+    var g1 = 2 + (back?7:9)*Math.max(0,(f-0.8)/0.2);
+    arrow(tail, tip, ink, 2, [3,4], back?9:11, g1);
+    if (S.sweepOn && f < 0.999){
+      var qp = proj(tip);
+      ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = ink;
+      ctx.beginPath(); ctx.arc(qp.x,qp.y,3.5,0,6.2832); ctx.fill(); ctx.restore();
+    }
+
+    var order = [{p:Ip,r:8,c:C('--at-i'),l:'I'},{p:S.J,r:6,c:C('--at-j'),l:'J'}];
+    order.sort(function(u,v){ return proj(u.p).d - proj(v.p).d; });
+    for (var z=0;z<order.length;z++) atom(order[z].p, order[z].r, order[z].c, order[z].l);
+
+    var sgn = back ? -1 : 1, sub = back ? 'ij' : 'ji';
+    var pj = proj(S.J), qi = proj(Ip), mx = (pj.x+qi.x)/2, my = (pj.y+qi.y)/2;
+    var L = Math.hypot(S.D[0],S.D[1],S.D[2]);
+    var s1 = 'Displacement', s3 = ' = ('+(sgn*S.D[0]).toFixed(1)+', '+(sgn*S.D[1]).toFixed(1)+', '+(sgn*S.D[2]).toFixed(1)+')';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '400 13.5px '+C('--sans'); var w1 = ctx.measureText(s1).width, w3 = ctx.measureText(s3).width;
+    ctx.font = '400 9.5px '+C('--sans'); var w2 = ctx.measureText(sub).width;
+    var tot = w1+w2+w3, sx = Math.min(Math.max(mx-tot/2, 14), W-tot-14), sy = Math.min(Math.max(my-18, 26), H-34);
+    ctx.font = '400 13.5px '+C('--sans'); ctx.fillStyle = ink; ctx.fillText(s1, sx, sy);
+    ctx.font = '400 9.5px '+C('--sans'); ctx.fillText(sub, sx+w1, sy+3);
+    ctx.font = '400 13.5px '+C('--sans'); ctx.fillText(s3, sx+w1+w2, sy);
+    ctx.font = '400 12px '+C('--mono'); ctx.fillStyle = i2;
+    ctx.fillText('|d| = '+L.toFixed(2)+(S.labelUnit?' '+S.labelUnit:'')+'   '+(back?'I \u2192 J':'J \u2192 I'), sx+w1, sy+18);
+
+    var pol = Math.acos(Math.max(-1,Math.min(1, S.D[2]/(L||1))))*180/Math.PI;
+    var azi = (Math.atan2(S.D[1],S.D[0])*180/Math.PI + 360) % 360;
+
+    ctx.font = '400 11px '+C('--mono'); ctx.fillStyle = i3;
+    ctx.fillText('I ('+Ip[0].toFixed(1)+', '+Ip[1].toFixed(1)+', '+Ip[2].toFixed(1)+')    J ('+S.J[0].toFixed(1)+', '+S.J[1].toFixed(1)+', '+S.J[2].toFixed(1)+')', 16, 26);
+    if (fill){
+      ctx.fillText('|d| = '+L.toFixed(3)+'    theta = '+pol.toFixed(1)+'\u00b0    phi = '+azi.toFixed(1)+'\u00b0', 16, 44);
+      ctx.fillText('unit ('+(sgn*S.D[0]/(L||1)).toFixed(2)+', '+(sgn*S.D[1]/(L||1)).toFixed(2)+', '+(sgn*S.D[2]/(L||1)).toFixed(2)+')', 16, 62);
+    }
+    if (opts.onFrame) opts.onFrame({ L: L, pol: pol, azi: azi, sgn: sgn, back: back });
+  }
+
+  function loop(t){
+    var dt = Math.min(0.05, (t-last)/1000); last = t;
+    if (S.spin && !drag) S.theta += S.spinSpeed*Math.PI/180*dt;
+    if (S.sweepOn){ sp += dt/S.sweepDur; if (sp >= 1+HOLD){ sp = 0; back = !back; } }
+    draw(); requestAnimationFrame(loop);
+  }
+
+  function pt(e){
+    var r = cv.getBoundingClientRect();
+    var cx = e.touches ? e.touches[0].clientX : e.clientX;
+    var cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: cx-r.left, y: cy-r.top, k: W/r.width };
+  }
+  cv.addEventListener('mousedown', function(e){ drag = pt(e); });
+  cv.addEventListener('touchstart', function(e){ drag = pt(e); }, {passive:true});
+  window.addEventListener('mousemove', onMove);
+  cv.addEventListener('touchmove', onMove, {passive:false});
+  function onMove(e){
+    if (!drag) return;
+    var p = pt(e);
+    S.theta += (p.x-drag.x)*p.k*0.006;
+    S.phi = Math.max(-0.2, Math.min(1.05, S.phi + (p.y-drag.y)*p.k*0.004));
+    drag = p;
+    if (opts.onDrag) opts.onDrag();
+    if (e.cancelable) e.preventDefault();
+  }
+  function onUp(){ if (drag){ drag = null; if (opts.onDragEnd) opts.onDragEnd(); } }
+  window.addEventListener('mouseup', onUp);
+  cv.addEventListener('touchend', onUp);
+
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+  requestAnimationFrame(loop);
+  return { resize: fitCanvas, restart: function(){ sp = 0; back = false; } };
+};
+
+</script>
+<script>
+var S = {
+  "J": [
+    -1.1,
+    0.5,
+    0.1
+  ],
+  "D": [
+    -2.2,
+    -0.5,
+    0.7
+  ],
+  "cell": {
+    "x": [
+      -3.6,
+      0.2
+    ],
+    "y": [
+      0,
+      1
+    ],
+    "z": [
+      0,
+      1.1
+    ]
+  },
+  "theta": 27.889796416640735,
+  "phi": 0.1877923688172197,
+  "scale": 190,
+  "spin": true,
+  "spinSpeed": 4,
+  "sweepOn": true,
+  "sweepDur": 2,
+  "showComps": true,
+  "showCell": false,
+  "labelUnit": ""
+};
+window.DVIEW(document.getElementById("cv"), S, { fill: true });
+</script>
+</body>
+</html>
